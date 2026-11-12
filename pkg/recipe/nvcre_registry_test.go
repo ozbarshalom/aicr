@@ -61,6 +61,16 @@ func TestNVCRERegisteredWithoutOverlay(t *testing.T) {
 		t.Errorf("system nodeSelectorPaths = %v, want empty (chart has no manager.nodeSelector)", got)
 	}
 
+	for _, path := range stockFilesReferencing(t, "nvcre") {
+		t.Errorf("%s declares componentRef nvcre; CRE must stay opt-in", path)
+	}
+}
+
+// stockFilesReferencing returns every shipped overlay or mixin that declares a
+// componentRef to component, for the opt-in components that must have none.
+func stockFilesReferencing(t *testing.T, component string) []string {
+	t.Helper()
+
 	type overlaySpec struct {
 		Spec struct {
 			ComponentRefs []struct {
@@ -69,6 +79,7 @@ func TestNVCRERegisteredWithoutOverlay(t *testing.T) {
 		} `yaml:"spec"`
 	}
 
+	var found []string
 	for _, dir := range []string{"overlays", "mixins"} {
 		err := fs.WalkDir(recipes.FS, dir, func(path string, d fs.DirEntry, err error) error {
 			if err != nil {
@@ -87,8 +98,8 @@ func TestNVCRERegisteredWithoutOverlay(t *testing.T) {
 				return nil
 			}
 			for _, ref := range doc.Spec.ComponentRefs {
-				if ref.Name == "nvcre" {
-					t.Errorf("%s declares componentRef nvcre; CRE must stay opt-in", path)
+				if ref.Name == component {
+					found = append(found, path)
 				}
 			}
 			return nil
@@ -97,6 +108,7 @@ func TestNVCRERegisteredWithoutOverlay(t *testing.T) {
 			t.Fatalf("walk %s: %v", dir, err)
 		}
 	}
+	return found
 }
 
 // TestNVCREValuesFileMatchesHealthCheck guards the cross-file coupling the
@@ -126,7 +138,7 @@ func TestNVCREValuesFileMatchesHealthCheck(t *testing.T) {
 	wantName := fullnameOverride + "-manager"
 	wantNamespace := comp.Helm.DefaultNamespace
 
-	gotName, gotNamespace := nvcreHealthCheckDeployment(t, comp.HealthCheck.AssertFile)
+	gotName, gotNamespace := healthCheckDeployment(t, comp.HealthCheck.AssertFile)
 	if gotName != wantName {
 		t.Errorf("%s asserts Deployment %q, but %s renders %q (fullnameOverride %q)",
 			comp.HealthCheck.AssertFile, gotName, nvcreValuesFile, wantName, fullnameOverride)
@@ -300,9 +312,9 @@ func readNVCREValues(t *testing.T) map[string]any {
 	return values
 }
 
-// nvcreHealthCheckDeployment returns the name and namespace of the first
+// healthCheckDeployment returns the name and namespace of the first
 // Deployment the health check asserts.
-func nvcreHealthCheckDeployment(t *testing.T, assertFile string) (name, namespace string) {
+func healthCheckDeployment(t *testing.T, assertFile string) (name, namespace string) {
 	t.Helper()
 
 	raw, err := recipes.FS.ReadFile(assertFile)
