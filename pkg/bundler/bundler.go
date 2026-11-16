@@ -1390,7 +1390,7 @@ func (b *DefaultBundler) extractComponentValues(ctx context.Context, recipeResul
 				fmt.Sprintf("failed to resolve values for component %q", ref.Name))
 		}
 
-		sizing, err := b.planSizing(ctx, recipeResult, &ref, values)
+		plan, err := b.planSizing(ctx, recipeResult, &ref, values)
 		if err != nil {
 			return nil, err
 		}
@@ -1516,7 +1516,7 @@ func (b *DefaultBundler) extractComponentValues(ctx context.Context, recipeResul
 			}
 		}
 
-		if err := b.finishSizing(sizing, &ref, values, provider); err != nil {
+		if err := b.finishSizing(plan, &ref, values, provider); err != nil {
 			return nil, err
 		}
 
