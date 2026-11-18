@@ -1846,6 +1846,53 @@ the `--image-pull-secret` Secrets, copied into the per-run namespace as for
 the other probe pods (see the `driver-runtime-management` note above), so a
 mirror that needs credentials is served the same way as the validator image.
 
+### `snapshot-restore` fails
+
+The check proves that [Snapshot](https://github.com/ai-dynamo/snapshot) (GPU
+checkpoint and restore) works on the cluster, which its prerequisites alone do
+not show; the deployment-phase `snapshot-requirements` check covers those. It
+skips unless the recipe declares the `snapshot` component. No embedded recipe
+lists it, so add `snapshot-restore` to `spec.validation.conformance.checks` in a
+recipe copy that selects `snapshot`.
+
+The check runs a small CUDA probe in a `python` image under a `SnapshotJob`,
+which checkpoints it, then restores the checkpoint into a new pod on the node it
+was taken on. It passes when the restored process reports the token it held in
+process memory and in GPU memory. The restore pod's own environment holds a
+different token and its command does nothing, so a process that merely restarted
+cannot pass: the pod is Ready only when the restored process has written
+`match` and the token the source pod held. The probe needs one free
+`nvidia.com/gpu` on a device-plugin node. The check does not exercise DRA
+allocated GPUs or a restore onto a different node.
+
+Its artifacts (`SnapshotJob`, `Snapshot capture`, `Snapshot restore pod`,
+`Snapshot restore verdict`) name the failing step:
+
+| Verdict excerpt | Meaning | Fix |
+|-----------------|---------|-----|
+| `snapshot operator ... is not available` or `snapshot node agent ... is not ready` | The component is not running. The check fails before it asks for a GPU | Look at the pods in the namespace the recipe installs `snapshot` into |
+| `the SnapshotJob API (snapshotjobs.nvidia.com) is not served` | Snapshot's custom resource definitions are not installed | Install the component, and keep the chart's `crdUpgrade.enabled` on |
+| `no device-plugin GPU node for the Snapshot probe` or `is allocated through the device plugin` | The probe asks for `nvidia.com/gpu`, and either no node advertises it or the recipe's GPU allocation policy is DRA | Run the check on a cluster whose GPUs come from the device plugin |
+| `SnapshotJob ... did not complete` with `source pod ... not scheduled` or `Unschedulable` | The probe pod could not get a GPU, or its image did not pull | Free a GPU, or see the image note below |
+| `the Snapshot probe source pod ... failed before it was checkpointed` with `libcuda.so.1 not found` | The container runtime injected no NVIDIA driver into the probe pod | Check the GPU Operator's container toolkit and the `nvidia` `RuntimeClass`, which the check uses when the cluster has it |
+| `SnapshotJob ... failed (...)` | Snapshot's own capture failed. The message names the step, as `while <step>: <cause>` in Snapshot v0.3.0 and later | Read the node agent's log, `kubectl logs` on the `snapshot-agent` pod on that node |
+| `Snapshot restore into pod ... failed: RestoreIncompatible` or `RestoreFailed` | The node agent refused or lost the restore; the message names the check or step | Same: the agent log on that node. A restore that fails inside CRIU (for example `cgroupd: recv req error`) has needed the chart's `config.criu.mntnsCompatMode` on some nodes, see [ai-dynamo/snapshot#144](https://github.com/ai-dynamo/snapshot/issues/144); take a new checkpoint after changing it |
+| `restore pod ... was not Ready` with `the restored process did not report the expected result` | The pod restored but what the process held did not come back, or it never saw `restore-complete`. The `Snapshot restore pod` artifact shows what `probe-result` held | `mismatch <token>` means GPU memory differed after the restore; an empty result means the process did not resume. Report either to the Snapshot project with the agent log |
+| `the pod ended` | The restored container exited. In Snapshot v0.3.0 and later the restore proxy exits 112 when the pod's one restore was already used and 113 when it lost the restored process | The agent log on that node |
+
+The probe image (`docker.io/library/python:3.12-slim`) pulls from Docker Hub by
+default and, like the other probe images, is not rewritten by
+`AICR_VALIDATOR_IMAGE_REGISTRY`. In a mirrored environment set
+`AICR_SNAPSHOT_PROBE_IMAGE=<image ref>` in the `aicr validate` environment to the
+full reference of your copy or of another image that provides `python3`, a POSIX
+`/bin/sh`, `cat` and `sleep`. The image needs no CUDA libraries: the container
+runtime injects the driver library the probe loads. The probe pods carry the
+`--image-pull-secret` Secrets, copied into the per-run namespace as for the other
+probe pods (see the `driver-runtime-management` note above). Every probe object
+lives in the per-run namespace. Deleting it deletes the checkpoint's
+`PodSnapshot`, and the Snapshot operator then removes the cluster-scoped
+`PodSnapshotContent` that records it.
+
 ### `pod-autoscaling` fails with "Prometheus did not load the PodMonitor"
 
 When the recipe declares `kube-prometheus-stack`, the check creates its

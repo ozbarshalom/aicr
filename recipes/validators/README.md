@@ -89,6 +89,7 @@ Neither constraint applies to `nccl-cre-all-reduce-bw` or
 | `workload-sandboxing` | Verify a sandboxed `RuntimeClass` (gVisor, Kata; or the one `AICR_SANDBOX_RUNTIME_CLASS` names) isolates a CPU-only `ubuntu:22.04` probe pod from the host: no host daemon in `/proc`, no readable `/dev/mem` or `/dev/kmem`, no `/etc/kubernetes`, `/var/lib/kubelet` or `/var/log/pods`, no host bridge interface, and a kernel identity distinct from an unsandboxed control pod on the same node; fails with `unmet prerequisite: no sandboxed RuntimeClass` when none exists (never skips) | 10m |
 | `gpu-operator-health` | Verify GPU operator health (conformance diagnostic) | 2m |
 | `platform-health` | Verify platform component health (conformance diagnostic) | 5m |
+| `snapshot-restore` | Verify Snapshot checkpoints a CUDA probe and restores it: the restored process reports the token it held in process memory and in GPU memory, and the restore pod is Ready only on that result (skipped unless the recipe declares `snapshot`) | 10m |
 
  `slinky-slurm-health` expects a GPU-requesting NodeSet and fails
 if none is present; for `kind` or CPU-only recipes it runs CPU-only checks and

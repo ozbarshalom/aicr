@@ -370,7 +370,9 @@ rewrite, such as the NCCL runtime image (override it with
 `AICR_NCCL_RUNTIME_IMAGE`) and the vanilla `docker.io/library/ubuntu:22.04`
 probe image of the `driver-runtime-management` and `workload-sandboxing`
 conformance checks (override it with `AICR_DRIVER_RUNTIME_IMAGE` and
-`AICR_SANDBOX_PROBE_IMAGE`, each a full reference to your copy); see
+`AICR_SANDBOX_PROBE_IMAGE`, each a full reference to your copy), and the
+`docker.io/library/python:3.12-slim` probe image of the opt-in `snapshot-restore`
+conformance check (override it with `AICR_SNAPSHOT_PROBE_IMAGE`); see
 [Validation](validation.md). The opt-in CRE checks `nccl-cre-all-reduce-bw`
 and `cre-training-goodput` pull their workload images by digest with no
 override variable, so mirror them at the digests

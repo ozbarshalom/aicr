@@ -102,6 +102,19 @@ const (
 	// validators/conformance/driver_runtime_management_check.go.
 	driverRuntimeImageEnv = "AICR_DRIVER_RUNTIME_IMAGE"
 
+	// SnapshotRestoreCheckName is the catalog name of the conformance check that
+	// checkpoints a CUDA probe with Snapshot and restores it; snapshotProbeImageEnv
+	// forwarding is scoped to it.
+	SnapshotRestoreCheckName = "snapshot-restore"
+
+	// snapshotProbeImageEnv replaces the python probe image
+	// (docker.io/library/python:3.12-slim) of snapshot-restore with a full
+	// reference, for registries that mirror it under another path than
+	// AICR_VALIDATOR_IMAGE_REGISTRY rewrites to. Forwarded verbatim to that
+	// check's pod only; the pod-side const of the same literal lives in
+	// validators/conformance/snapshot_restore_check.go.
+	snapshotProbeImageEnv = "AICR_SNAPSHOT_PROBE_IMAGE"
+
 	// WorkloadSandboxingCheckName is the catalog name of the conformance check
 	// that proves a sandboxed RuntimeClass isolates a pod from the host;
 	// sandboxRuntimeClassEnv and sandboxProbeImageEnv forwarding is scoped
@@ -301,6 +314,12 @@ func buildEnv(
 		env = append(env, corev1.EnvVar{Name: driverRuntimeImageEnv, Value: v})
 	}
 
+	// Forward the snapshot-restore probe image override to that check only; the
+	// pod resolves the default itself.
+	if v := os.Getenv(snapshotProbeImageEnv); v != "" && entry.Name == SnapshotRestoreCheckName {
+		env = append(env, corev1.EnvVar{Name: snapshotProbeImageEnv, Value: v})
+	}
+
 	// Forward the inference-perf no-cleanup debug toggle into that validator pod.
 	// Cleanup runs inside the Job, so it can't see the CLI process environment
 	// unless the orchestrator carries the value across. Scoped to the
@@ -348,6 +367,9 @@ func buildEnv(
 			continue
 		}
 		if e.Name == sandboxRuntimeClassEnv || e.Name == sandboxProbeImageEnv || e.Name == ImagePullSecretsEnv || e.Name == defaults.EnvRunaiProjectNamespace {
+			continue
+		}
+		if e.Name == snapshotProbeImageEnv {
 			continue
 		}
 		if e.Name == defaults.EnvServiceMetricsQueryURL {

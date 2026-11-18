@@ -358,6 +358,13 @@ validators:
     timeout: 5m
     args: ["platform-health"]
     env: []
+  - name: snapshot-restore
+    phase: conformance
+    description: "Verify Snapshot checkpoints and restores a GPU workload: a CUDA probe's token survives in process and GPU memory (skipped unless the recipe declares snapshot)"
+    image: ghcr.io/nvidia/aicr-validators/conformance:latest
+    timeout: 10m
+    args: ["snapshot-restore"]
+    env: []
   - name: nccl-all-reduce-bw-net
     phase: performance
     description: "Verify NCCL All Reduce Bus Bandwidth on the NET transport (EFA on EKS)"
